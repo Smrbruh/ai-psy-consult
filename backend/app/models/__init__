@@ -1,0 +1,111 @@
+"""
+Pydantic models (schemas) for request validation and response serialization.
+"""
+
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+from bson import ObjectId
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+class PyObjectId(str):
+    """Allow MongoDB ObjectId to be used as a Pydantic field."""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        if ObjectId.is_valid(str(v)):
+            return str(v)
+        raise ValueError(f"Invalid ObjectId: {v!r}")
+
+
+# ─── User Models ──────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    """Payload for registering a new user."""
+    email: EmailStr
+    password: str = Field(..., min_length=6, description="Minimum 6 characters")
+
+
+class UserLogin(BaseModel):
+    """Payload for authenticating an existing user."""
+    email: EmailStr
+    password: str
+
+
+class UserResponse(BaseModel):
+    """Public user representation returned by the API (never exposes password)."""
+    id: str
+    email: EmailStr
+    balance_minutes: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Chat Models ──────────────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    """A single turn in a conversation (stored in DB and used for context)."""
+    role: str  # "user" | "assistant"
+    content: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ChatRequest(BaseModel):
+    """Incoming chat message from the client."""
+    message: str = Field(..., min_length=1, max_length=4_000)
+    chat_id: Optional[str] = Field(default=None, description="Omit to start a new conversation")
+
+
+class ChatResponse(BaseModel):
+    """AI reply returned to the client."""
+    reply: str
+    chat_id: str
+    minutes_remaining: int
+
+
+class ChatHistoryResponse(BaseModel):
+    """Full conversation history for a given chat_id."""
+    chat_id: str
+    messages: List[ChatMessage]
+
+
+# ─── Payment / Billing Models ─────────────────────────────────────────────────
+
+class PaymentWebhook(BaseModel):
+    """
+    ApiPay webhook payload.
+    The `metadata` dict must include `user_id` so we can credit the right account.
+    """
+    payment_id: str
+    amount: float  # in RUB
+    status: str    # "success" | "failed" | "pending"
+    metadata: dict  # {"user_id": "<mongo_id>", ...}
+
+
+class PaymentRecord(BaseModel):
+    """Stored payment record returned in history."""
+    payment_id: str
+    amount: float
+    minutes_added: int
+    status: str
+    created_at: datetime
+
+
+# ─── Auth Tokens ──────────────────────────────────────────────────────────────
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    user_id: Optional[str] = None

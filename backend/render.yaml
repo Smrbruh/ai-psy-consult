@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: ai-psychologist-backend
+    env: python
+    region: frankfurt  # Ближайший к Казахстану
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: ai_psychologist
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_MINUTES
+        value: "1440"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: APIPAY_SECRET_KEY
+        sync: false
+      - key: APIPAY_RATE
+        value: "1"
+      - key: DEFAULT_FREE_MINUTES
+        value: "60"
+    autoDeploy: true
